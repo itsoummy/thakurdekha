@@ -1,69 +1,119 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { pandals } from "@/data/pandals";
+import PandalCard from "@/components/PandalCard";
+import FilterBar, { defaultFilters } from "@/components/FilterBar";
+import { useGeolocation, KOLKATA_FALLBACK } from "@/hooks/useGeolocation";
+import { haversineDistance } from "@/lib/geo";
+
+const MapView = dynamic(() => import("@/components/MapView"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[420px] rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" />
+  ),
+});
 
 export default function Home() {
+  const [view, setView] = useState<"list" | "map">("list");
+  const [filters, setFilters] = useState(defaultFilters());
+  const { position, status, request } = useGeolocation();
+
+  const originForSort = position ?? KOLKATA_FALLBACK;
+
+  const filtered = useMemo(() => {
+    let list = pandals.filter((p) => {
+      const q = filters.query.trim().toLowerCase();
+      const matchesQuery =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.theme.toLowerCase().includes(q) ||
+        p.nameBn.includes(q);
+      const matchesZone = filters.zone === "All" || p.zone === filters.zone;
+      const matchesBudget = filters.budget === "All" || p.budgetRange === filters.budget;
+      return matchesQuery && matchesZone && matchesBudget;
+    });
+
+    if (filters.sortBy === "trending") {
+      list = [...list].sort((a, b) => b.trendingScore - a.trendingScore);
+    } else if (filters.sortBy === "crowd") {
+      list = [...list].sort((a, b) => a.crowdRating - b.crowdRating);
+    } else {
+      list = [...list].sort(
+        (a, b) =>
+          haversineDistance(originForSort, a) - haversineDistance(originForSort, b)
+      );
+    }
+    return list;
+  }, [filters, originForSort]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="mx-auto max-w-6xl px-4 py-6 flex flex-col gap-5">
+      <section className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold">
+          <span className="text-sindoor">Ei Pujo,</span> Ekhane Dekha
+        </h1>
+        <p className="text-smoke text-sm">
+          Discover Kolkata&apos;s famous Durga Pujo pandals, nearby metro &amp; food,
+          and build your own pandal-hopping route.
+        </p>
+      </section>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <FilterBar filters={filters} onChange={setFilters} />
+        <div className="flex items-center gap-2">
+          {status !== "granted" && (
+            <button
+              onClick={request}
+              className="text-sm px-3 py-2 rounded-lg border border-black/15 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              📍 Use my location
+            </button>
+          )}
+          <div className="flex rounded-lg border border-black/15 dark:border-white/20 overflow-hidden">
+            <button
+              onClick={() => setView("list")}
+              className={`px-3 py-2 text-sm ${view === "list" ? "bg-sindoor text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              List
+            </button>
+            <button
+              onClick={() => setView("map")}
+              className={`px-3 py-2 text-sm ${view === "map" ? "bg-sindoor text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}
+            >
+              Map
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+      </div>
+
+      {status === "denied" && (
+        <p className="text-xs text-smoke">
+          Location access denied — showing distances from central Kolkata (Esplanade) instead.
+        </p>
+      )}
+
+      <p className="text-sm text-smoke">{filtered.length} pandals found</p>
+
+      {view === "map" ? (
+        <MapView pandals={filtered} userLocation={position} />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((p) => (
+            <PandalCard
+              key={p.id}
+              pandal={p}
+              distanceM={haversineDistance(originForSort, p)}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
+          {filtered.length === 0 && (
+            <p className="col-span-full text-sm text-smoke py-10 text-center">
+              No pandals match your filters. Try widening your search.
+            </p>
+          )}
         </div>
-      </main>
+      )}
     </div>
   );
 }
