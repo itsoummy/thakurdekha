@@ -28,7 +28,8 @@ export default function Header() {
       <div className="mx-auto max-w-6xl flex items-center gap-3 px-4 py-2 h-[57px]">
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <Image src="/logo.png" alt="" width={36} height={36} priority className="h-9 w-9 rounded-lg" />
-          <span className="text-xl font-bold text-sindoor">Thakurdekha</span>
+          <Image src="/wordmark.png" alt="" width={720} height={158} priority className="h-8 w-auto" />
+          <span className="sr-only">Thakurdekha</span>
         </Link>
         <GlobalSearch className="hidden md:block flex-1 max-w-md" />
         <nav className="flex items-center gap-1 ml-auto overflow-x-auto">
