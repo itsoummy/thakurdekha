@@ -445,6 +445,29 @@ describe("Gemini assistant", () => {
     expect(toolResult.pandals.some((p) => p.id === "p-bagbazar")).toBe(true);
   });
 
+  it("falls back to the next model when one is retired or overloaded", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const urls: string[] = [];
+    const replies = [new Response("gone", { status: 404 }), new Response("busy", { status: 503 }), gemini([{ text: "Hello from the third model." }])];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      return replies.shift()!;
+    }));
+    const res = await ask(user, [{ role: "user", text: "hi" }]);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.reply).toBe("Hello from the third model.");
+    expect(urls).toHaveLength(3);
+    expect(new Set(urls).size).toBe(3);
+  });
+
+  it("reports overload clearly when every model is busy", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("busy", { status: 503 })));
+    const res = await ask(user, [{ role: "user", text: "hi" }]);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error.code).toBe("ASSISTANT_BUSY");
+  });
+
   it("maps Gemini rate limits to a friendly 429", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("quota", { status: 429 })));
