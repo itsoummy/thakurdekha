@@ -33,6 +33,7 @@ import * as adminFood from "@/app/api/admin/food/[id]/route";
 import * as adminContent from "@/app/api/admin/content/[kind]/[id]/route";
 import * as search from "@/app/api/search/route";
 import * as assistant from "@/app/api/assistant/route";
+import * as authMe from "@/app/api/auth/me/route";
 
 const KOLKATA = { lat: 22.5726, lng: 88.3639 };
 const call = <T,>(h: (r: Request, c: T) => Promise<Response> | Response, r: Request, c?: T) => h(r, c as T);
@@ -384,6 +385,14 @@ describe("reports, plans, search", () => {
   });
 });
 
+
+describe("GET /api/auth/me", () => {
+  it("returns null when signed out and the real user when signed in", async () => {
+    expect(await (await call(authMe.GET, req("/api/auth/me"))).json()).toEqual({ user: null });
+    const { user: me } = await (await call(authMe.GET, req("/api/auth/me", { cookie: user }))).json();
+    expect(me).toMatchObject({ email: "user@example.com", role: "USER" });
+  });
+});
 
 describe("Gemini assistant", () => {
   const ask = (cookie: string | undefined, messages: unknown) =>
