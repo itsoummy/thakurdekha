@@ -34,6 +34,11 @@ import * as adminContent from "@/app/api/admin/content/[kind]/[id]/route";
 import * as search from "@/app/api/search/route";
 import * as assistant from "@/app/api/assistant/route";
 import * as authMe from "@/app/api/auth/me/route";
+import * as adminList from "@/app/api/admin/pandals/route";
+import * as adminFoodList from "@/app/api/admin/food/route";
+import * as adminStats from "@/app/api/admin/stats/route";
+import * as adminUsers from "@/app/api/admin/users/route";
+import * as adminUser from "@/app/api/admin/users/[id]/route";
 
 const KOLKATA = { lat: 22.5726, lng: 88.3639 };
 const call = <T,>(h: (r: Request, c: T) => Promise<Response> | Response, r: Request, c?: T) => h(r, c as T);
@@ -446,5 +451,88 @@ describe("Gemini assistant", () => {
     const res = await ask(user, [{ role: "user", text: "hi" }]);
     expect(res.status).toBe(429);
     expect((await res.json()).error.code).toBe("ASSISTANT_BUSY");
+  });
+});
+
+describe("Admin portal API", () => {
+  const patchPandal = (cookie: string, id: string, body: unknown) =>
+    call(adminPandal.PATCH, req("/x", { method: "PATCH", body, cookie }), params({ id }));
+
+  it("guards every admin endpoint", async () => {
+    for (const [h, path] of [
+      [adminList.GET, "/api/admin/pandals"],
+      [adminFoodList.GET, "/api/admin/food"],
+      [adminStats.GET, "/api/admin/stats"],
+      [adminUsers.GET, "/api/admin/users"],
+    ] as const) {
+      expect((await call(h, req(path))).status).toBe(401);
+      expect((await call(h, req(path, { cookie: user }))).status).toBe(403);
+    }
+  });
+
+  it("lists pandals of every status with search and status filter", async () => {
+    const all = await (await call(adminList.GET, req("/api/admin/pandals?limit=100", { cookie: admin }))).json();
+    expect(all.total).toBe(48);
+    const one = await (await call(adminList.GET, req("/api/admin/pandals?q=Bagbazar", { cookie: admin }))).json();
+    expect(one.data.map((p: { id: string }) => p.id)).toContain("p-bagbazar");
+    await patchPandal(admin, "p-bagbazar", { action: "reject" });
+    const rejected = await (await call(adminList.GET, req("/api/admin/pandals?status=REJECTED", { cookie: admin }))).json();
+    expect(rejected.data.map((p: { id: string }) => p.id)).toEqual(["p-bagbazar"]);
+    expect((await call(adminList.GET, req("/api/admin/pandals?status=NOPE", { cookie: admin }))).status).toBe(400);
+  });
+
+  it("edits rich pandal fields, can clear text, and rejects bad coordinates", async () => {
+    const ok = await patchPandal(admin, "p-bagbazar", {
+      action: "edit",
+      edits: { currentTheme: "Test theme", history: "Founded long ago", zone: "North", crowdRating: 4, establishedYear: 1919, latitude: 22.6, longitude: 88.37 },
+    });
+    expect(ok.status).toBe(200);
+    let { data } = await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json();
+    expect(data).toMatchObject({ currentTheme: "Test theme", history: "Founded long ago", zone: "North", crowdRating: 4, establishedYear: 1919, latitude: 22.6 });
+
+    await patchPandal(admin, "p-bagbazar", { action: "edit", edits: { history: "" } });
+    ({ data } = await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json());
+    expect(data.history).toBeNull();
+
+    expect((await patchPandal(admin, "p-bagbazar", { action: "edit", edits: { latitude: 28.6, longitude: 77.2 } })).status).toBe(400);
+    expect((await patchPandal(admin, "p-bagbazar", { action: "edit", edits: { latitude: 22.6 } })).status).toBe(400);
+    expect((await patchPandal(admin, "p-bagbazar", { action: "edit", edits: { zone: "Mars" } })).status).toBe(400);
+    expect((await patchPandal(admin, "p-bagbazar", { action: "edit", edits: { googleMapsUrl: "javascript:alert(1)" } })).status).toBe(400);
+  });
+
+  it("toggles verified on an approved pandal", async () => {
+    await patchPandal(admin, "p-bagbazar", { action: "approve", verified: false });
+    expect((await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json()).data.trust).toBe("COMMUNITY");
+    await patchPandal(admin, "p-bagbazar", { action: "approve", verified: true });
+    expect((await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json()).data.trust).toBe("VERIFIED");
+  });
+
+  it("reports stats", async () => {
+    const s = await (await call(adminStats.GET, req("/api/admin/stats", { cookie: admin }))).json();
+    expect(s.pandals.total).toBe(48);
+    expect(s.pandals.verified + s.pandals.community).toBe(48);
+    expect(s.users).toBe(2);
+    expect(s.openReports).toBe(0);
+    expect(Array.isArray(s.events7d)).toBe(true);
+  });
+
+  it("lists users and changes roles with safeguards", async () => {
+    const list = await (await call(adminUsers.GET, req("/api/admin/users", { cookie: admin }))).json();
+    expect(list.data.map((u: { email: string }) => u.email).sort()).toEqual(["admin@example.com", "user@example.com"]);
+    expect(list.data.find((u: { email: string }) => u.email === "admin@example.com").envAdmin).toBe(true);
+    const target = list.data.find((u: { email: string }) => u.email === "user@example.com");
+    const self = list.data.find((u: { email: string }) => u.email === "admin@example.com");
+    const setRole = (id: string, role: string, cookie = admin) =>
+      call(adminUser.PATCH, req("/x", { method: "PATCH", body: { role }, cookie }), params({ id }));
+
+    expect((await setRole(target.id, "ADMIN", user)).status).toBe(403);
+    expect((await setRole(self.id, "USER")).status).toBe(400);
+    expect((await setRole("u_missing", "ADMIN")).status).toBe(404);
+    expect((await setRole(target.id, "ROOT")).status).toBe(400);
+
+    expect((await setRole(target.id, "ADMIN")).status).toBe(200);
+    expect((await call(adminStats.GET, req("/api/admin/stats", { cookie: user }))).status).toBe(200);
+    expect((await setRole(target.id, "USER")).status).toBe(200);
+    expect((await call(adminStats.GET, req("/api/admin/stats", { cookie: user }))).status).toBe(403);
   });
 });

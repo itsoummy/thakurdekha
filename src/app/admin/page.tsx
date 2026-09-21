@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import OverviewTab from "@/components/admin/OverviewTab";
+import ContentTab from "@/components/admin/ContentTab";
+import UsersTab from "@/components/admin/UsersTab";
 import type { FoodDTO, PandalDTO } from "@/server/repo";
 import { btnGhost, btnPrimary, inputCls, Notice, Skeleton, TrustBadge } from "@/components/ui";
 
@@ -48,8 +51,7 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-export default function AdminPage() {
-  const { user, loading } = useAuth();
+function Moderation() {
   const [q, setQ] = useState<Queue | null>(null);
   const [tab, setTab] = useState<Tab>("pandals");
   const [error, setError] = useState<string | null>(null);
@@ -58,18 +60,8 @@ export default function AdminPage() {
     api<Queue>("/api/admin/queue").then(setQ).catch((e) => setError(errorMessage(e)));
   }, []);
   useEffect(() => {
-     
-    if (user?.role === "ADMIN") load();
-  }, [user, load]);
-
-  if (loading) return <div className="p-6"><Skeleton className="h-8 w-48" /></div>;
-  if (user?.role !== "ADMIN")
-    return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center flex flex-col items-center gap-3">
-        <h1 className="text-xl font-bold">Admin access required</h1>
-        <Link className={btnPrimary} href={user ? "/" : "/login?next=/admin"}>{user ? "Go home" : "Sign in"}</Link>
-      </div>
-    );
+    load();
+  }, [load]);
 
   const counts: Record<Tab, number> = {
     pandals: (q?.pendingPandals.length ?? 0) + (q?.flagged.pandals.length ?? 0),
@@ -90,8 +82,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">Moderation</h1>
+    <div className="flex flex-col gap-4">
       <div role="tablist" className="flex gap-1 overflow-x-auto">
         {TABS.map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`shrink-0 min-h-10 px-3 rounded-full text-sm ${tab === id ? "bg-sindoor text-white" : "border border-black/15 dark:border-white/20"}`}>
@@ -278,5 +269,51 @@ function ReportRow({
         <button className={btnGhost} onClick={() => confirm("Delete the reported item permanently?") && onDelete()}>Delete item</button>
       </div>
     </li>
+  );
+}
+
+const SECTIONS = [
+  ["overview", "Overview"],
+  ["moderation", "Moderation"],
+  ["pandals", "Pandals"],
+  ["food", "Food places"],
+  ["users", "Users"],
+] as const;
+type Section = (typeof SECTIONS)[number][0];
+
+export default function AdminPage() {
+  const { user, loading } = useAuth();
+  const [section, setSection] = useState<Section>("overview");
+
+  if (loading) return <div className="p-6"><Skeleton className="h-8 w-48" /></div>;
+  if (user?.role !== "ADMIN")
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center flex flex-col items-center gap-3">
+        <h1 className="text-xl font-bold">Admin access required</h1>
+        <Link className={btnPrimary} href={user ? "/" : "/login?next=/admin"}>{user ? "Go home" : "Sign in"}</Link>
+      </div>
+    );
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6 flex flex-col gap-4">
+      <h1 className="text-2xl font-bold">Admin portal</h1>
+      <nav aria-label="Admin sections" className="flex gap-1 overflow-x-auto border-b border-black/10 dark:border-white/10 pb-2">
+        {SECTIONS.map(([id, label]) => (
+          <button
+            key={id}
+            aria-current={section === id ? "page" : undefined}
+            onClick={() => setSection(id)}
+            className={`shrink-0 min-h-10 px-4 rounded-full text-sm font-medium ${section === id ? "bg-sindoor text-white" : "text-smoke hover:bg-black/5 dark:hover:bg-white/10"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {section === "overview" && <OverviewTab goTo={(s) => setSection(s)} />}
+      {section === "moderation" && <Moderation />}
+      {section === "pandals" && <ContentTab kind="pandals" />}
+      {section === "food" && <ContentTab kind="food" />}
+      {section === "users" && <UsersTab selfId={user.id} />}
+    </div>
   );
 }

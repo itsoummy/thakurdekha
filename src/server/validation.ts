@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isWithinKolkata } from "@/lib/spatial";
 
+const ZONES = ["North", "South", "Central", "South-East", "South-West", "East", "Central-East", "Salt Lake", "New Town", "Howrah"] as const;
 const text = (max: number) => z.string().trim().max(max);
 const optText = (max: number) =>
   text(max)
@@ -116,16 +117,42 @@ export const moderationSchema = z.object({
   edits: z
     .object({
       name: text(120).min(2).optional(),
-      description: optText(2000),
-      currentTheme: optText(200),
-      address: optText(300),
-      category: optText(60),
-      recommendedDish: optText(120),
+      description: text(2000).optional(),
+      history: text(4000).optional(),
+      currentTheme: text(200).optional(),
+      themeStatus: text(200).optional(),
+      address: text(300).optional(),
+      category: text(120).optional(),
+      zone: z.enum(ZONES).optional(),
+      budgetRange: z.enum(["Budget", "Mid", "Big Budget", "Theme Heavyweight"]).optional(),
+      nearestMetro: text(120).optional(),
+      openingTime: text(30).optional(),
+      closingTime: text(30).optional(),
+      establishedYear: z.number().int().min(1800).max(2100).optional(),
+      crowdRating: z.number().int().min(1).max(5).optional(),
+      googleMapsUrl: z.union([z.literal(""), z.string().trim().url().max(500).startsWith("https://")]).optional(),
+      latitude: latitude.optional(),
+      longitude: longitude.optional(),
+      pujoSpecial: z.boolean().optional(),
+      recommendedDish: text(120).optional(),
       priceRange: z.enum(["₹", "₹₹", "₹₹₹"]).optional(),
       images: z.array(imageRef).max(6).optional(),
     })
+    .refine(
+      (e) => (e.latitude === undefined) === (e.longitude === undefined) && (e.latitude === undefined || isWithinKolkata(e.latitude, e.longitude!)),
+      { message: "Provide both coordinates, within Greater Kolkata.", path: ["latitude"] }
+    )
     .optional(),
 });
+
+export const adminListQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  status: z.enum(["ALL", "PENDING", "APPROVED", "REJECTED", "FLAGGED"]).default("ALL"),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const roleSchema = z.object({ role: z.enum(["USER", "ADMIN"]) });
 
 export const analyticsSchema = z.object({
   name: z.enum([

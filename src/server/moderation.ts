@@ -22,19 +22,28 @@ export async function moderate(table: Kind, id: string, body: Mod) {
   if (body.action === "edit") {
     if (table !== "pandals" && table !== "food_places") throw new ApiError(400, "NOT_EDITABLE", "This item can't be edited.");
     const e = body.edits ?? {};
+    const geo = { latitude: "latitude", longitude: "longitude" };
     const map: Record<string, string> =
       table === "pandals"
-        ? { name: "name", description: "description", currentTheme: "current_theme", address: "address", category: "category", images: "images" }
-        : { name: "name", description: "description", address: "address", category: "category", recommendedDish: "recommended_dish", priceRange: "price_range", images: "images" };
+        ? {
+            name: "name", description: "description", history: "history", currentTheme: "current_theme", themeStatus: "theme_status",
+            address: "address", category: "category", zone: "zone", budgetRange: "budget_range", nearestMetro: "nearest_metro",
+            openingTime: "opening_time", closingTime: "closing_time", establishedYear: "established_year", crowdRating: "crowd_rating",
+            googleMapsUrl: "google_maps_url", images: "images", ...geo,
+          }
+        : {
+            name: "name", description: "description", address: "address", category: "category", recommendedDish: "recommended_dish",
+            priceRange: "price_range", pujoSpecial: "pujo_special", images: "images", ...geo,
+          };
     const sets: string[] = [];
-    const vals: (string | null)[] = [];
+    const vals: (string | number | null)[] = [];
     for (const [k, col] of Object.entries(map)) {
-      const raw = (e as Record<string, string | string[] | undefined>)[k];
-      const v = Array.isArray(raw) ? JSON.stringify(raw) : raw;
-      if (v !== undefined) {
-        sets.push(`${col} = ?`);
-        vals.push(v);
-      }
+      const raw = (e as Record<string, string | number | boolean | string[] | undefined>)[k];
+      if (raw === undefined) continue;
+      const v = Array.isArray(raw) ? JSON.stringify(raw) : typeof raw === "boolean" ? (raw ? 1 : 0) : raw === "" ? null : raw;
+      if (col === "name" && v === null) continue;
+      sets.push(`${col} = ?`);
+      vals.push(v);
     }
     if (body.moderatorNotes !== undefined) {
       sets.push("moderator_notes = ?");
