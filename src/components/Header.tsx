@@ -35,6 +35,7 @@ export default function Header() {
         <nav className="flex items-center gap-1 ml-auto overflow-x-auto">
           {navLink("/", "Discover")}
           {navLink("/map", "Map")}
+          {navLink("/assistant", "Ask AI")}
           {navLink("/my-list", `My List${pandalIds.length ? ` (${pandalIds.length})` : ""}`)}
           {!loading &&
             (user ? (

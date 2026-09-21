@@ -157,3 +157,11 @@ export const nearbyQuery = z.object({
 export function parseQuery<T extends z.ZodTypeAny>(schema: T, req: Request): z.infer<T> {
   return schema.parse(Object.fromEntries(new URL(req.url).searchParams));
 }
+
+export const assistantSchema = z.object({
+  messages: z
+    .array(z.object({ role: z.enum(["user", "model"]), text: z.string().trim().min(1).max(1000) }))
+    .min(1)
+    .max(12)
+    .refine((m) => m.at(-1)?.role === "user", "Last message must be from the user."),
+});

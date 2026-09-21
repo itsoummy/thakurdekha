@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 
 export interface AppConfig {
   routing: { provider: "google" | "estimate"; transit: boolean; estimated: boolean };
+  assistant?: { enabled: boolean };
 }
 
 let cached: AppConfig | null = null;

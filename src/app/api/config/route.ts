@@ -5,7 +5,10 @@ import { getMapService } from "@/server/map";
 export const GET = handle(async () => {
   const provider = getMapService().provider;
   return json(
-    { routing: { provider, transit: provider === "google", estimated: provider !== "google" } },
+    {
+      routing: { provider, transit: provider === "google", estimated: provider !== "google" },
+      assistant: { enabled: Boolean(process.env.GEMINI_API_KEY) },
+    },
     { cache: "public, s-maxage=300" }
   );
 });

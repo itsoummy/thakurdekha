@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -32,6 +32,7 @@ import * as adminPandal from "@/app/api/admin/pandals/[id]/route";
 import * as adminFood from "@/app/api/admin/food/[id]/route";
 import * as adminContent from "@/app/api/admin/content/[kind]/[id]/route";
 import * as search from "@/app/api/search/route";
+import * as assistant from "@/app/api/assistant/route";
 
 const KOLKATA = { lat: 22.5726, lng: 88.3639 };
 const call = <T,>(h: (r: Request, c: T) => Promise<Response> | Response, r: Request, c?: T) => h(r, c as T);
@@ -380,5 +381,61 @@ describe("reports, plans, search", () => {
     const m = await (await call(search.GET, req("/api/search?q=Kalighat"))).json();
     expect(m.transport.map((t: { name: string }) => t.name)).toContain("Kalighat");
     expect(Object.keys(m).sort()).toEqual(["areas", "food", "pandals", "transport"]);
+  });
+});
+
+
+describe("Gemini assistant", () => {
+  const ask = (cookie: string | undefined, messages: unknown) =>
+    call(assistant.POST, req("/api/assistant", { body: { messages }, cookie }));
+  const gemini = (parts: unknown[]) => new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts } }] }), { status: 200 });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  it("requires sign-in and validates input", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    expect((await ask(undefined, [{ role: "user", text: "hi" }])).status).toBe(401);
+    expect((await ask(user, [])).status).toBe(400);
+    expect((await ask(user, [{ role: "model", text: "hi" }])).status).toBe(400);
+  });
+
+  it("is disabled without an API key", async () => {
+    expect((await ask(user, [{ role: "user", text: "hi" }])).status).toBe(503);
+    expect(await (await call(assistant.GET, req("/api/assistant"))).json()).toEqual({ enabled: false });
+  });
+
+  it("runs the tool loop over real data and drops made-up stop ids", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const bodies: { contents: { role: string; parts: { functionResponse?: { response: { result: unknown } } }[] }[] }[] = [];
+    const replies = [
+      gemini([{ functionCall: { name: "search_pandals", args: { query: "Bagbazar" } } }]),
+      gemini([{ functionCall: { name: "propose_route", args: { title: "North trip", stops: [{ type: "PANDAL", id: "p-bagbazar", note: "Classic" }, { type: "PANDAL", id: "p-invented" }] } } }]),
+      gemini([{ text: "Start at Bagbazar." }]),
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return replies.shift()!;
+    }));
+
+    const res = await ask(user, [{ role: "user", text: "Plan North Kolkata" }]);
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.reply).toBe("Start at Bagbazar.");
+    expect(data.stops.map((s: { id: string }) => s.id)).toEqual(["p-bagbazar"]);
+    expect(data.stops[0].name).toBeTruthy();
+
+    const toolResult = bodies[1].contents.at(-1)!.parts[0].functionResponse!.response.result as { pandals: { id: string }[] };
+    expect(toolResult.pandals.some((p) => p.id === "p-bagbazar")).toBe(true);
+  });
+
+  it("maps Gemini rate limits to a friendly 429", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("quota", { status: 429 })));
+    const res = await ask(user, [{ role: "user", text: "hi" }]);
+    expect(res.status).toBe(429);
+    expect((await res.json()).error.code).toBe("ASSISTANT_BUSY");
   });
 });
