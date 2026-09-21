@@ -30,6 +30,9 @@ export function HoppingListProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
+      // One-time read of persisted state on mount (SSR renders empty first to avoid
+      // a hydration mismatch, then this syncs from localStorage right after).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setPandalIds(JSON.parse(raw));
     } catch {
       // ignore malformed/blocked storage

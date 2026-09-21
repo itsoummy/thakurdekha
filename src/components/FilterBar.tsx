@@ -2,7 +2,18 @@
 
 import { Zone } from "@/types";
 
-const ZONES: Zone[] = ["North", "South", "Central", "Salt Lake", "New Town", "Howrah"];
+const ZONES: Zone[] = [
+  "North",
+  "Central",
+  "South",
+  "South-East",
+  "South-West",
+  "East",
+  "Central-East",
+  "Salt Lake",
+  "New Town",
+  "Howrah",
+];
 const BUDGETS = ["Budget", "Mid", "Big Budget", "Theme Heavyweight"] as const;
 
 export interface Filters {

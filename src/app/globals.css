@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
+@import "leaflet.markercluster/dist/MarkerCluster.css";
 
 :root {
   --background: #fffaf3;
@@ -35,3 +36,13 @@ body {
 .leaflet-container {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+.td-pin{width:100%;height:100%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3);box-sizing:border-box}
+.td-pandal{background:#c0392b;border-radius:50%}
+.td-food{background:#e8a33d;border-radius:4px;transform:rotate(45deg)}
+.td-sel{box-shadow:0 0 0 3px rgba(42,114,214,.7)}
+.td-user{width:16px;height:16px;border-radius:50%;background:#2a72d6;border:2px solid #fff;box-shadow:0 0 0 4px rgba(42,114,214,.25)}
+.td-pick{width:22px;height:22px;border-radius:50%;border:3px solid #2a72d6;background:rgba(42,114,214,.25)}
+.td-cluster{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:13px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.td-cluster-pandal{background:#c0392b}
+.td-cluster-food{background:#c98a1f;border-radius:8px}
