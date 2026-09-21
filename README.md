@@ -160,4 +160,4 @@ Issues and pull requests are welcome. Please run `npm run lint` and `npm test` f
 
 ## License
 
-[MIT](LICENSE) © 2026 itsoummy
+[MIT](LICENSE) © 2026 Soumya Dutta
