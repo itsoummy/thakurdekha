@@ -189,4 +189,20 @@ CREATE TABLE analytics_events (
 CREATE INDEX idx_analytics_name ON analytics_events(name, created_at);
 `,
   },
+  {
+    id: 2,
+    name: "pandal_photo_submissions",
+    sql: `
+CREATE TABLE pandal_photos (
+  id TEXT PRIMARY KEY,
+  pandal_id TEXT NOT NULL REFERENCES pandals(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  image TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX idx_pandal_photos_status ON pandal_photos(status, created_at);
+CREATE INDEX idx_pandal_photos_pandal ON pandal_photos(pandal_id);
+`,
+  },
 ];

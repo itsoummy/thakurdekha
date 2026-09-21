@@ -145,6 +145,8 @@ export default function PandalDetailPage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
+      <AddPhoto pandalId={pandal.id} />
+
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         {pandal.establishedYear && <Stat label="Established" value={String(pandal.establishedYear)} />}
         {pandal.budgetRange && <Stat label="Budget" value={pandal.budgetRange} />}
@@ -357,11 +359,67 @@ function AdminPhotos({ pandal, onSaved }: { pandal: PandalDTO; onSaved: (images:
     <section aria-label="Admin photos" className="rounded-lg border border-dashed border-black/20 dark:border-white/20 p-3 flex flex-col gap-2">
       <h2 className="text-sm font-semibold">Admin: manage photos</h2>
       <p className="text-xs text-smoke">Only upload photos you took or have permission to use.</p>
-      <ImageUploader value={images} onChange={setImages} max={6} />
+      <ImageUploader value={images} onChange={setImages} max={12} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <button className={btnPrimary} disabled={!changed || busy} onClick={() => void save()}>
         {busy ? "Saving…" : "Save photos"}
       </button>
+    </section>
+  );
+}
+
+function AddPhoto({ pandalId }: { pandalId: string }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "info"; text: string } | null>(null);
+
+  if (!user) {
+    return (
+      <p className="text-sm text-smoke">
+        <Link className="underline" href={`/login?next=/pandal/${pandalId}`}>Sign in</Link> to add your own photos of this pandal.
+      </p>
+    );
+  }
+
+  async function submit() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api(`/api/pandals/${encodeURIComponent(pandalId)}/photos`, { body: { images } });
+      setImages([]);
+      setOpen(false);
+      setMsg({ tone: "info", text: "Thanks! Your photos will show up once a moderator has reviewed them." });
+    } catch (e) {
+      setMsg({ tone: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-label="Add photos" className="flex flex-col gap-2">
+      {!open && (
+        <button className={`${btnGhost} self-start`} onClick={() => setOpen(true)}>
+          + Add a photo
+        </button>
+      )}
+      {open && (
+        <div className="rounded-lg border border-black/10 dark:border-white/10 p-3 flex flex-col gap-2">
+          <p className="text-xs text-smoke">Only share photos you took yourself. Up to 4, reviewed before they appear.</p>
+          <ImageUploader value={images} onChange={setImages} max={4} />
+          <div className="flex gap-2">
+            <button className={btnPrimary} disabled={busy || images.length === 0} onClick={() => void submit()}>
+              {busy ? "Submitting…" : "Submit for review"}
+            </button>
+            <button className={btnGhost} disabled={busy} onClick={() => { setOpen(false); setImages([]); }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
     </section>
   );
 }

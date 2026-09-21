@@ -101,3 +101,34 @@ export async function mergeFood(fromId: string, intoId: string) {
     await db.prepare("DELETE FROM food_places WHERE id = ?").run(fromId);
   });
 }
+
+export const MAX_PANDAL_PHOTOS = 12;
+
+export async function moderatePhoto(id: string, action: "approve" | "reject") {
+  const photo = await getDb().prepare("SELECT pandal_id, image, status FROM pandal_photos WHERE id = ?").get(id);
+  if (!photo) throw new ApiError(404, "NOT_FOUND", "Photo not found.");
+  if (photo.status !== "PENDING") throw new ApiError(409, "ALREADY_DECIDED", "This photo was already reviewed.");
+  if (action === "reject") {
+    await getDb().prepare("UPDATE pandal_photos SET status = 'REJECTED' WHERE id = ?").run(id);
+    return;
+  }
+  await transaction(async () => {
+    const db = getDb();
+    const p = await db.prepare("SELECT images FROM pandals WHERE id = ?").get(photo.pandal_id as string);
+    if (!p) throw new ApiError(404, "NOT_FOUND", "Pandal not found.");
+    let images: string[] = [];
+    try {
+      images = JSON.parse(String(p.images ?? "[]"));
+    } catch {
+      images = [];
+    }
+    if (!images.includes(photo.image as string)) {
+      if (images.length >= MAX_PANDAL_PHOTOS) {
+        throw new ApiError(409, "PHOTO_LIMIT", `This pandal already has ${MAX_PANDAL_PHOTOS} photos. Remove one first.`);
+      }
+      images.push(photo.image as string);
+      await db.prepare("UPDATE pandals SET images = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").run(JSON.stringify(images), photo.pandal_id as string);
+    }
+    await db.prepare("UPDATE pandal_photos SET status = 'APPROVED' WHERE id = ?").run(id);
+  });
+}

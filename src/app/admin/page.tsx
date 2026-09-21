@@ -8,7 +8,7 @@ import OverviewTab from "@/components/admin/OverviewTab";
 import ContentTab from "@/components/admin/ContentTab";
 import UsersTab from "@/components/admin/UsersTab";
 import type { FoodDTO, PandalDTO } from "@/server/repo";
-import { btnGhost, btnPrimary, inputCls, Notice, Skeleton, TrustBadge } from "@/components/ui";
+import { btnGhost, btnPrimary, fullUrl, inputCls, Notice, Skeleton, thumbUrl, TrustBadge } from "@/components/ui";
 
 interface Report {
   id: string;
@@ -27,6 +27,13 @@ interface Reco {
   foodPlaceName: string;
   author: string;
 }
+interface PendingPhoto {
+  id: string;
+  image: string;
+  pandalId: string;
+  pandalName: string;
+  author: string;
+}
 interface Dupe {
   kind: "PANDAL" | "FOOD";
   item: { id: string; name: string };
@@ -36,6 +43,7 @@ interface Queue {
   pendingPandals: PandalDTO[];
   pendingFood: FoodDTO[];
   pendingRecommendations: Reco[];
+  pendingPhotos: PendingPhoto[];
   flagged: { pandals: PandalDTO[]; food: FoodDTO[] };
   reportedContent: Report[];
   reportedReviews: Report[];
@@ -45,6 +53,7 @@ interface Queue {
 const TABS = [
   ["pandals", "Pending Pandals"],
   ["food", "Pending Food Places"],
+  ["photos", "Pending Photos"],
   ["reported", "Reported Content"],
   ["reviews", "Reported Reviews"],
   ["duplicates", "Duplicate Candidates"],
@@ -66,6 +75,7 @@ function Moderation() {
   const counts: Record<Tab, number> = {
     pandals: (q?.pendingPandals.length ?? 0) + (q?.flagged.pandals.length ?? 0),
     food: (q?.pendingFood.length ?? 0) + (q?.pendingRecommendations.length ?? 0) + (q?.flagged.food.length ?? 0),
+    photos: q?.pendingPhotos.length ?? 0,
     reported: q?.reportedContent.length ?? 0,
     reviews: q?.reportedReviews.length ?? 0,
     duplicates: q?.duplicates.length ?? 0,
@@ -136,6 +146,27 @@ function Moderation() {
             ))}
           </List>
         </>
+      )}
+
+      {q && tab === "photos" && (
+        <List empty="No photos waiting for review.">
+          {q.pendingPhotos.map((ph) => (
+            <li key={ph.id} className="rounded-lg border border-black/10 dark:border-white/10 p-3 text-sm flex flex-wrap items-center gap-3">
+              <a href={fullUrl(ph.image)} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumbUrl(ph.image)} alt={`Submitted photo for ${ph.pandalName}`} className="h-24 w-24 rounded-md object-cover" />
+              </a>
+              <div className="flex-1 min-w-40">
+                <Link className="font-medium underline" href={`/pandal/${ph.pandalId}`}>{ph.pandalName}</Link>
+                <div className="text-xs text-smoke">by {ph.author}</div>
+              </div>
+              <div className="flex gap-2">
+                <button className={btnPrimary} onClick={() => act(() => api(`/api/admin/photos/${ph.id}`, { method: "PATCH", body: { action: "approve" } }))}>Approve</button>
+                <button className={btnGhost} onClick={() => act(() => api(`/api/admin/photos/${ph.id}`, { method: "PATCH", body: { action: "reject" } }))}>Reject</button>
+              </div>
+            </li>
+          ))}
+        </List>
       )}
 
       {q && tab === "reported" && (

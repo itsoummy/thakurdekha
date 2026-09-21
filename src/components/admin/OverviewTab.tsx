@@ -11,6 +11,7 @@ interface Stats {
   approvedReviews: number;
   plans: number;
   pendingRecommendations: number;
+  pendingPhotos: number;
   openReports: number;
   events7d: { name: string; count: number }[];
 }
@@ -52,7 +53,7 @@ export default function OverviewTab({ goTo }: { goTo: (s: "moderation" | "pandal
   if (error) return <Notice tone="error">{error}</Notice>;
   if (!s) return <Skeleton className="h-40 w-full" />;
 
-  const attention = s.pandals.pending + s.food.pending + s.pendingRecommendations + s.openReports + s.pandals.flagged + s.food.flagged;
+  const attention = s.pandals.pending + s.food.pending + s.pendingRecommendations + s.pendingPhotos + s.openReports + s.pandals.flagged + s.food.flagged;
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,6 +67,7 @@ export default function OverviewTab({ goTo }: { goTo: (s: "moderation" | "pandal
             ["Pending pandals", s.pandals.pending],
             ["Pending food places", s.food.pending],
             ["Pending recommendations", s.pendingRecommendations],
+            ["Pending photos", s.pendingPhotos],
             ["Open reports", s.openReports],
             ["Flagged pandals", s.pandals.flagged],
             ["Flagged food", s.food.flagged],

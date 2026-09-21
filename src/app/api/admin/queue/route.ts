@@ -23,6 +23,14 @@ export const GET = handle(async (req) => {
     )
     .all();
 
+  const pendingPhotos = await db
+    .prepare(
+      `SELECT ph.id, ph.image, ph.created_at AS createdAt, p.id AS pandalId, p.name AS pandalName, u.name AS author
+       FROM pandal_photos ph JOIN pandals p ON p.id = ph.pandal_id JOIN users u ON u.id = ph.user_id
+       WHERE ph.status = 'PENDING' ORDER BY ph.created_at LIMIT 200`
+    )
+    .all();
+
   const reports = (await db
     .prepare(
       `SELECT rp.id, rp.entity_type AS entityType, rp.entity_id AS entityId, rp.reason, rp.description,
@@ -52,6 +60,7 @@ export const GET = handle(async (req) => {
       pendingPandals,
       pendingFood,
       pendingRecommendations,
+      pendingPhotos,
       flagged,
       reportedContent: reports.filter((r) => r.entityType === "PANDAL" || r.entityType === "FOOD"),
       reportedReviews: reports.filter((r) => r.entityType === "PANDAL_REVIEW" || r.entityType === "FOOD_RECOMMENDATION"),

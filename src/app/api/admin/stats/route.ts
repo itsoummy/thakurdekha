@@ -18,9 +18,10 @@ export const GET = handle(async (req) => {
   ]);
   const sum = (rows: { status?: unknown; verified?: unknown; c?: unknown }[], pred: (r: { status?: unknown; verified?: unknown }) => boolean) =>
     rows.filter(pred).reduce((n, r) => n + Number(r.c), 0);
-  const [pendingRecs, openReports] = await Promise.all([
+  const [pendingRecs, openReports, pendingPhotos] = await Promise.all([
     count("SELECT COUNT(*) AS c FROM food_recommendations WHERE status = 'PENDING'"),
     count("SELECT COUNT(*) AS c FROM reports WHERE status = 'OPEN'"),
+    count("SELECT COUNT(*) AS c FROM pandal_photos WHERE status = 'PENDING'"),
   ]);
   return json(
     {
@@ -42,6 +43,7 @@ export const GET = handle(async (req) => {
       plans,
       pendingRecommendations: pendingRecs,
       openReports,
+      pendingPhotos,
       events7d: events.map((e) => ({ name: e.name as string, count: Number(e.c) })),
     },
     { cache: "private, no-store" }

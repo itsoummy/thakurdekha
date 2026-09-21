@@ -136,7 +136,7 @@ export const moderationSchema = z.object({
       pujoSpecial: z.boolean().optional(),
       recommendedDish: text(120).optional(),
       priceRange: z.enum(["₹", "₹₹", "₹₹₹"]).optional(),
-      images: z.array(imageRef).max(6).optional(),
+      images: z.array(imageRef).max(12).optional(),
     })
     .refine(
       (e) => (e.latitude === undefined) === (e.longitude === undefined) && (e.latitude === undefined || isWithinKolkata(e.latitude, e.longitude!)),
@@ -192,3 +192,6 @@ export const assistantSchema = z.object({
     .max(12)
     .refine((m) => m.at(-1)?.role === "user", "Last message must be from the user."),
 });
+
+export const photoSubmitSchema = z.object({ images: z.array(imageRef).min(1).max(4) });
+export const photoModerationSchema = z.object({ action: z.enum(["approve", "reject"]) });

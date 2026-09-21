@@ -39,6 +39,8 @@ import * as adminFoodList from "@/app/api/admin/food/route";
 import * as adminStats from "@/app/api/admin/stats/route";
 import * as adminUsers from "@/app/api/admin/users/route";
 import * as adminUser from "@/app/api/admin/users/[id]/route";
+import * as pandalPhotos from "@/app/api/pandals/[id]/photos/route";
+import * as adminPhoto from "@/app/api/admin/photos/[id]/route";
 
 const KOLKATA = { lat: 22.5726, lng: 88.3639 };
 const call = <T,>(h: (r: Request, c: T) => Promise<Response> | Response, r: Request, c?: T) => h(r, c as T);
@@ -557,5 +559,70 @@ describe("Admin portal API", () => {
     expect((await call(adminStats.GET, req("/api/admin/stats", { cookie: user }))).status).toBe(200);
     expect((await setRole(target.id, "USER")).status).toBe(200);
     expect((await call(adminStats.GET, req("/api/admin/stats", { cookie: user }))).status).toBe(403);
+  });
+});
+
+describe("Community pandal photos", () => {
+  const submit = (cookie: string | undefined, id: string, images: unknown) =>
+    call(pandalPhotos.POST, req("/x", { body: { images }, cookie }), params({ id }));
+  const decide = (cookie: string, id: string, action: string) =>
+    call(adminPhoto.PATCH, req("/x", { method: "PATCH", body: { action }, cookie }), params({ id }));
+  const queue = async () => (await (await call(adminQueue.GET, req("/x", { cookie: admin }))).json()).pendingPhotos as { id: string; image: string; pandalName: string }[];
+  const publicImages = async () => (await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json()).data.images as string[];
+
+  it("requires sign-in and validates the submission", async () => {
+    expect((await submit(undefined, "p-bagbazar", ["abcdef123456.webp"])).status).toBe(401);
+    expect((await submit(user, "p-bagbazar", [])).status).toBe(400);
+    expect((await submit(user, "p-bagbazar", ["../../etc/passwd"])).status).toBe(400);
+    expect((await submit(user, "p-bagbazar", ["a1b2c3d4e5.webp", "b1b2c3d4e5.webp", "c1b2c3d4e5.webp", "d1b2c3d4e5.webp", "e1b2c3d4e5.webp"])).status).toBe(400);
+    expect((await submit(user, "p-nope", ["abcdef123456.webp"])).status).toBe(404);
+  });
+
+  it("keeps a submitted photo hidden until an admin approves it", async () => {
+    expect((await submit(user, "p-bagbazar", ["abcdef123456.webp"])).status).toBe(201);
+    expect(await publicImages()).toEqual([]);
+
+    const q = await queue();
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ image: "abcdef123456.webp", pandalName: expect.any(String) });
+
+    expect((await decide(user, q[0].id, "approve")).status).toBe(403);
+    expect((await decide(admin, q[0].id, "approve")).status).toBe(200);
+    expect(await publicImages()).toEqual(["abcdef123456.webp"]);
+    expect(await queue()).toHaveLength(0);
+    expect((await decide(admin, q[0].id, "approve")).status).toBe(409);
+  });
+
+  it("never publishes a rejected photo", async () => {
+    await submit(user, "p-bagbazar", ["rejected00001.webp"]);
+    const [p] = await queue();
+    expect((await decide(admin, p.id, "reject")).status).toBe(200);
+    expect(await publicImages()).toEqual([]);
+    expect((await decide(admin, p.id, "approve")).status).toBe(409);
+  });
+
+  it("stops approving once a pandal has 12 photos", async () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => `full${String(i).padStart(6, "0")}.webp`);
+    await call(adminPandal.PATCH, req("/x", { method: "PATCH", body: { action: "edit", edits: { images: twelve } }, cookie: admin }), params({ id: "p-bagbazar" }));
+    await submit(user, "p-bagbazar", ["extraphoto01.webp"]);
+    const [p] = await queue();
+    const res = await decide(admin, p.id, "approve");
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.code).toBe("PHOTO_LIMIT");
+    expect(await publicImages()).toHaveLength(12);
+  });
+
+  it("caps how many photos one user can leave pending on a pandal", async () => {
+    await submit(user, "p-bagbazar", ["pend0000001.webp", "pend0000002.webp", "pend0000003.webp", "pend0000004.webp"]);
+    await submit(user, "p-bagbazar", ["pend0000005.webp", "pend0000006.webp", "pend0000007.webp", "pend0000008.webp"]);
+    const res = await submit(user, "p-bagbazar", ["pend0000009.webp"]);
+    expect(res.status).toBe(429);
+    expect((await res.json()).error.code).toBe("TOO_MANY_PENDING");
+  });
+
+  it("counts pending photos in admin stats", async () => {
+    await submit(user, "p-bagbazar", ["statsphoto01.webp"]);
+    const s = await (await call(adminStats.GET, req("/api/admin/stats", { cookie: admin }))).json();
+    expect(s.pendingPhotos).toBe(1);
   });
 });

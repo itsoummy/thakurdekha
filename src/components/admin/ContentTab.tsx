@@ -280,7 +280,7 @@ function Editor({ kind, item, busy, onSave }: { kind: Kind; item: Item; busy: bo
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-xs text-smoke">Photos (only use photos you took or have permission to use)</span>
-        <ImageUploader value={images} onChange={setImages} max={6} />
+        <ImageUploader value={images} onChange={setImages} max={12} />
       </div>
       <button className={`${btnPrimary} self-start`} disabled={busy} onClick={save}>
         {busy ? "Saving…" : "Save changes"}
