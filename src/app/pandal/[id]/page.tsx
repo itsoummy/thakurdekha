@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { nearestMetroStations, formatDistance } from "@/lib/geo";
 import { googleMapsDirectionsUrl } from "@/lib/spatial";
 import ReportButton from "@/components/ReportButton";
+import ImageUploader from "@/components/ImageUploader";
 import { btnGhost, btnPrimary, CardSkeleton, fullUrl, inputCls, Notice, Rating, Skeleton, TrustBadge } from "@/components/ui";
 
 const MapCanvas = dynamic(() => import("@/components/MapCanvas"), {
@@ -132,6 +133,8 @@ export default function PandalDetailPage({ params }: { params: Promise<{ id: str
           </details>
         )}
       </section>
+
+      {auth.user?.role === "ADMIN" && <AdminPhotos pandal={pandal} onSaved={(images) => setPandal({ ...pandal, images })} />}
 
       {pandal.images.length > 0 && (
         <section aria-label="Photos" className="flex gap-2 overflow-x-auto">
@@ -327,5 +330,38 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="text-[10px] uppercase text-smoke">{label}</div>
       <div className="font-medium">{value}</div>
     </div>
+  );
+}
+
+function AdminPhotos({ pandal, onSaved }: { pandal: PandalDTO; onSaved: (images: string[]) => void }) {
+  const [images, setImages] = useState(pandal.images);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "info"; text: string } | null>(null);
+  const changed = JSON.stringify(images) !== JSON.stringify(pandal.images);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api(`/api/admin/pandals/${encodeURIComponent(pandal.id)}`, { method: "PATCH", body: { action: "edit", edits: { images } } });
+      onSaved(images);
+      setMsg({ tone: "info", text: "Photos saved." });
+    } catch (e) {
+      setMsg({ tone: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-label="Admin photos" className="rounded-lg border border-dashed border-black/20 dark:border-white/20 p-3 flex flex-col gap-2">
+      <h2 className="text-sm font-semibold">Admin: manage photos</h2>
+      <p className="text-xs text-smoke">Only upload photos you took or have permission to use.</p>
+      <ImageUploader value={images} onChange={setImages} max={6} />
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      <button className={btnPrimary} disabled={!changed || busy} onClick={() => void save()}>
+        {busy ? "Saving…" : "Save photos"}
+      </button>
+    </section>
   );
 }

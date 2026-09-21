@@ -122,6 +122,7 @@ export const moderationSchema = z.object({
       category: optText(60),
       recommendedDish: optText(120),
       priceRange: z.enum(["₹", "₹₹", "₹₹₹"]).optional(),
+      images: z.array(imageRef).max(6).optional(),
     })
     .optional(),
 });

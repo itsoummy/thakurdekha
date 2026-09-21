@@ -212,6 +212,17 @@ describe("POST pandal submission -> moderation", () => {
     expect(await getDb().prepare("SELECT moderator_notes n, status s FROM pandals WHERE id = ?").get(data.id)).toEqual({ n: "Not a pandal", s: "REJECTED" });
   });
 
+  it("lets only admins set photos on an existing pandal without changing its status", async () => {
+    const edit = (cookie: string, images: string[]) =>
+      call(adminPandal.PATCH, req("/x", { method: "PATCH", body: { action: "edit", edits: { images } }, cookie }), params({ id: "p-bagbazar" }));
+    expect((await edit(user, ["abcdef123456.webp"])).status).toBe(403);
+    expect((await edit(admin, ["../evil.png"])).status).toBe(400);
+    expect((await edit(admin, ["abcdef123456.webp"])).status).toBe(200);
+    const { data } = await (await call(pandalOne.GET, req("/x"), params({ id: "p-bagbazar" }))).json();
+    expect(data.images).toEqual(["abcdef123456.webp"]);
+    expect(data.trust).toBe("VERIFIED");
+  });
+
   it("merges a duplicate pandal into an existing one", async () => {
     const { data } = await (await call(pandalSubmit.POST, req("/x", { body, cookie: user }))).json();
     await call(adminPandal.PATCH, req("/x", { method: "PATCH", body: { action: "approve" }, cookie: admin }), params({ id: data.id }));

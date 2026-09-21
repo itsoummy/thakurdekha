@@ -24,12 +24,13 @@ export async function moderate(table: Kind, id: string, body: Mod) {
     const e = body.edits ?? {};
     const map: Record<string, string> =
       table === "pandals"
-        ? { name: "name", description: "description", currentTheme: "current_theme", address: "address", category: "category" }
-        : { name: "name", description: "description", address: "address", category: "category", recommendedDish: "recommended_dish", priceRange: "price_range" };
+        ? { name: "name", description: "description", currentTheme: "current_theme", address: "address", category: "category", images: "images" }
+        : { name: "name", description: "description", address: "address", category: "category", recommendedDish: "recommended_dish", priceRange: "price_range", images: "images" };
     const sets: string[] = [];
     const vals: (string | null)[] = [];
     for (const [k, col] of Object.entries(map)) {
-      const v = (e as Record<string, string | undefined>)[k];
+      const raw = (e as Record<string, string | string[] | undefined>)[k];
+      const v = Array.isArray(raw) ? JSON.stringify(raw) : raw;
       if (v !== undefined) {
         sets.push(`${col} = ?`);
         vals.push(v);
