@@ -157,3 +157,7 @@ docs/screenshots/ README images
 ## Contributing
 
 Issues and pull requests are welcome. Please run `npm run lint` and `npm test` first, and don't submit copyrighted photos.
+
+## License
+
+[MIT](LICENSE) © 2026 itsoummy
