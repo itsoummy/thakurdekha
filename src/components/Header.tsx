@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHoppingList } from "@/context/HoppingListContext";
@@ -25,7 +26,8 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-[1400] border-b border-black/10 dark:border-white/10 bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-6xl flex items-center gap-3 px-4 py-2 h-[57px]">
-        <Link href="/" className="flex items-baseline gap-2 shrink-0">
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <Image src="/logo.png" alt="" width={36} height={36} priority className="h-9 w-9 rounded-lg" />
           <span className="text-xl font-bold text-sindoor">Thakurdekha</span>
         </Link>
         <GlobalSearch className="hidden md:block flex-1 max-w-md" />

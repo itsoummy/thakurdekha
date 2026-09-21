@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Thakurdekha",
   title: "Thakurdekha — Ei Pujo, Ekhane Dekha",
   description:
     "Discover Kolkata's Durga Pujo pandals, find nearby metro & food, and build your own pandal-hopping route.",
