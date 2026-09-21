@@ -1,5 +1,6 @@
 import { handle, json } from "@/server/http";
 import { getMapService } from "@/server/map";
+import { tursoConfig } from "@/server/db";
 
 /** Public capability flags only — never keys. */
 export const GET = handle(async () => {
@@ -9,7 +10,7 @@ export const GET = handle(async () => {
       routing: { provider, transit: provider === "google", estimated: provider !== "google" },
       assistant: { enabled: Boolean(process.env.GEMINI_API_KEY) },
       storage: {
-        database: process.env.TURSO_DATABASE_URL ? "turso" : "local-file",
+        database: tursoConfig() ? "turso" : "local-file",
         images: process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local-disk",
       },
     },

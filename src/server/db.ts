@@ -83,8 +83,14 @@ async function applyMigrations(db: Db) {
   const done = new Set(rs.rows.map((r) => Number(r[0])));
   for (const m of migrations) {
     if (done.has(m.id)) continue;
-    await db.exec(m.sql, true);
-    await db.rawRun("INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)", [m.id, m.name, new Date().toISOString()]);
+    try {
+      await db.exec(m.sql, true);
+      await db.rawRun("INSERT OR IGNORE INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)", [m.id, m.name, new Date().toISOString()]);
+    } catch (e) {
+      // Another instance may have applied it concurrently on first boot.
+      const applied = await db.rawGet("SELECT id FROM _migrations WHERE id = ?", [m.id]);
+      if (!applied) throw e;
+    }
   }
 }
 
@@ -92,12 +98,12 @@ export async function seedIfEmpty(db: Db) {
   const row = await db.rawGet("SELECT COUNT(*) AS c FROM pandals");
   if (Number(row?.c) > 0) return;
 
-  const pandalSql = `INSERT INTO pandals
+  const pandalSql = `INSERT OR IGNORE INTO pandals
     (id,name,slug,name_bn,description,history,established_year,current_theme,theme_status,category,zone,
      budget_range,opening_time,closing_time,crowd_rating,trending_score,latitude,longitude,address,
      nearest_metro,google_maps_url,verified,status,source)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'APPROVED','seed')`;
-  const foodSql = `INSERT INTO food_places
+  const foodSql = `INSERT OR IGNORE INTO food_places
     (id,name,category,price_range,latitude,longitude,pujo_special,verified,status,source)
     VALUES (?,?,?,?,?,?,?,0,'APPROVED','seed')`;
   const linkSql = "INSERT OR IGNORE INTO pandal_food_links (pandal_id, food_place_id) VALUES (?,?)";
@@ -150,12 +156,19 @@ export async function openDatabase(url: string, authToken?: string): Promise<Db>
   return db;
 }
 
+export const tursoConfig = () => {
+  const url = process.env.TURSO_DATABASE_URL || process.env.DB_TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DB_TURSO_AUTH_TOKEN;
+  return url ? { url, authToken } : null;
+};
+
 function defaultConfig(): { url: string; authToken?: string } {
-  if (process.env.TURSO_DATABASE_URL) {
-    return { url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN };
-  }
+  const turso = tursoConfig();
+  if (turso) return turso;
   if (process.env.DATABASE_PATH) return { url: `file:${process.env.DATABASE_PATH}` };
-  if (process.env.VERCEL) return { url: "file:/tmp/thakurdekha.db" };
+  if (process.env.VERCEL) {
+    throw new Error("No database configured: set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN. Refusing to use ephemeral storage on Vercel.");
+  }
   return { url: `file:${path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "thakurdekha.db")}` };
 }
 
@@ -167,9 +180,14 @@ export function getDb(): Db {
     const db = new Db(client);
     db.setReady(
       (async () => {
-        if (url.startsWith("file:")) await client.execute("PRAGMA foreign_keys = ON");
-        await applyMigrations(db);
-        if (process.env.SEED_DATABASE !== "false") await seedIfEmpty(db);
+        try {
+          if (url.startsWith("file:")) await client.execute("PRAGMA foreign_keys = ON");
+          await applyMigrations(db);
+          if (process.env.SEED_DATABASE !== "false") await seedIfEmpty(db);
+        } catch (e) {
+          if (g.__tdDb === db) g.__tdDb = undefined;
+          throw e;
+        }
       })()
     );
     g.__tdDb = db;
