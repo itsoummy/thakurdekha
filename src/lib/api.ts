@@ -35,6 +35,9 @@ export async function api<T = unknown>(
   }
   if (!res.ok) {
     const err = (data.error ?? {}) as { code?: string; message?: string };
+    if (!err.message && (res.status === 504 || res.status === 502 || res.status === 503)) {
+      throw new ApiClientError(res.status, "TIMEOUT", "The server took too long to respond. Please try again.", data);
+    }
     throw new ApiClientError(
       res.status,
       err.code ?? "ERROR",

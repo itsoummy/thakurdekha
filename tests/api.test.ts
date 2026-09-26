@@ -428,8 +428,7 @@ describe("Gemini assistant", () => {
     const bodies: { contents: { role: string; parts: { functionResponse?: { response: { result: unknown } } }[] }[] }[] = [];
     const replies = [
       gemini([{ functionCall: { name: "search_pandals", args: { query: "Bagbazar" } } }]),
-      gemini([{ functionCall: { name: "propose_route", args: { title: "North trip", stops: [{ type: "PANDAL", id: "p-bagbazar", note: "Classic" }, { type: "PANDAL", id: "p-invented" }] } } }]),
-      gemini([{ text: "Start at Bagbazar." }]),
+      gemini([{ functionCall: { name: "propose_route", args: { title: "North trip", summary: "Start at Bagbazar.", stops: [{ type: "PANDAL", id: "p-bagbazar", note: "Classic" }, { type: "PANDAL", id: "p-invented" }] } } }]),
     ];
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
       bodies.push(JSON.parse(init.body));
@@ -443,6 +442,7 @@ describe("Gemini assistant", () => {
     expect(data.stops.map((s: { id: string }) => s.id)).toEqual(["p-bagbazar"]);
     expect(data.stops[0].name).toBeTruthy();
 
+    expect(bodies).toHaveLength(2);
     const toolResult = bodies[1].contents.at(-1)!.parts[0].functionResponse!.response.result as { pandals: { id: string }[] };
     expect(toolResult.pandals.some((p) => p.id === "p-bagbazar")).toBe(true);
   });
@@ -468,6 +468,15 @@ describe("Gemini assistant", () => {
     const res = await ask(user, [{ role: "user", text: "hi" }]);
     expect(res.status).toBe(503);
     expect((await res.json()).error.code).toBe("ASSISTANT_BUSY");
+  });
+
+  it("moves to another model when one has hit its rate limit", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const replies = [new Response("quota", { status: 429 }), gemini([{ text: "Answer from the second model." }])];
+    vi.stubGlobal("fetch", vi.fn(async () => replies.shift()!));
+    const res = await ask(user, [{ role: "user", text: "hi" }]);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.reply).toBe("Answer from the second model.");
   });
 
   it("maps Gemini rate limits to a friendly 429", async () => {
